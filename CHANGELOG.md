@@ -4,6 +4,15 @@ All notable changes to xSHELL are documented here.
 
 The format follows the spirit of Keep a Changelog, and versions use semantic versioning.
 
+## [0.2.0] - 2026-05-23
+
+### Added
+
+- Added `ren` for preview-first batch file renaming.
+- Supports stripping filename suffixes with `-x`.
+- Supports changing extensions with `-e OLD:NEW`.
+- Supports text replacement with `-f OLD -t NEW`.
+
 ## [0.1.0] - 2026-05-23
 
 ### Added

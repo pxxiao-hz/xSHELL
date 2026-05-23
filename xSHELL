@@ -3,7 +3,7 @@
 set -u
 
 PROG="$(basename "$0")"
-VERSION="0.1.0"
+VERSION="0.2.0"
 CONFIG_DIR="${XSHELL_CONFIG_DIR:-$HOME/.config/xSHELL}"
 PATH_DB="$CONFIG_DIR/paths.tsv"
 
@@ -25,7 +25,7 @@ ensure_config() {
 usage() {
   cat <<'EOF'
 xSHELL - small shell helper collection
-Version: 0.1.0
+Version: 0.2.0
 
 Usage:
   xSHELL <name> [args]
@@ -37,6 +37,7 @@ Commands:
   ext           Print child directories that have or miss files by extension
   find          Find files/directories and sort by size, time, or name
   path          Store and print frequently used paths
+  ren           Rename files in batch with preview
   size          Show child directory sizes
   top           Show process snapshots by user, PID, CPU, or memory
   version       Print xSHELL version
@@ -45,6 +46,7 @@ Examples:
   xSHELL ext -e tsv .
   xSHELL ext -e fasta -m .
   xSHELL find '*.fa*' -s size -r .
+  xSHELL ren -e fa:fasta *.fa
   xSHELL path ref-genome
   xSHELL top -u USER -s mem -n 20
   xSHELL path add ref /data/reference/genome.fa 'reference genome'
@@ -52,7 +54,7 @@ EOF
 }
 
 list_functions() {
-  printf '%s\n' ext find path size top version
+  printf '%s\n' ext find path ren size top version
 }
 
 print_version() {
@@ -129,6 +131,31 @@ Shell shortcut example:
 EOF
 }
 
+help_ren() {
+  cat <<'EOF'
+Usage:
+  xSHELL ren [options] FILE...
+
+Rename files in batch. By default this command only previews the plan.
+Use -y to execute the rename.
+
+Options:
+  -x, --strip TEXT     Remove TEXT when it appears at the end of the filename
+  -e, --ext OLD:NEW    Change extension OLD to NEW
+  -f, --from TEXT      Text to replace in the filename
+  -t, --to TEXT        Replacement text for -f
+  -y, --yes            Execute the rename
+  -n, --dry-run        Preview only. This is the default
+  -h, --help           Show this help
+
+Examples:
+  xSHELL ren -x .chr.removedTE.v1.longest.pep.fa *.fa
+  xSHELL ren -e fa:fasta *.fa
+  xSHELL ren -f _1.fastq -t .RNAseq_1.fastq ALB27_1.fastq
+  xSHELL ren -f _1.fastq -t .RNAseq_1.fastq *_1.fastq -y
+EOF
+}
+
 help_subdir_size() {
   cat <<'EOF'
 Usage:
@@ -180,6 +207,7 @@ help_function() {
     ext) help_ext_dirs ;;
     find) help_find_file ;;
     path) help_path ;;
+    ren) help_ren ;;
     size) help_subdir_size ;;
     top) help_top ;;
     ""|help) usage ;;
@@ -464,6 +492,181 @@ cmd_path() {
   esac
 }
 
+replace_all() {
+  local text="$1"
+  local from="$2"
+  local to="$3"
+
+  awk -v text="$text" -v from="$from" -v to="$to" 'BEGIN {
+    out = ""
+    while ((pos = index(text, from)) > 0) {
+      out = out substr(text, 1, pos - 1) to
+      text = substr(text, pos + length(from))
+    }
+    print out text
+  }'
+}
+
+cmd_ren() {
+  local strip_suffix=""
+  local ext_pair=""
+  local from_text=""
+  local to_text=""
+  local from_set=0
+  local to_set=0
+  local execute=0
+  local files=()
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -x|--strip)
+        [ "$#" -ge 2 ] || die "--strip needs a value"
+        strip_suffix="$2"
+        shift 2
+        ;;
+      -e|--ext)
+        [ "$#" -ge 2 ] || die "--ext needs OLD:NEW"
+        ext_pair="$2"
+        shift 2
+        ;;
+      -f|--from)
+        [ "$#" -ge 2 ] || die "--from needs a value"
+        from_text="$2"
+        from_set=1
+        shift 2
+        ;;
+      -t|--to)
+        [ "$#" -ge 2 ] || die "--to needs a value"
+        to_text="$2"
+        to_set=1
+        shift 2
+        ;;
+      -y|--yes)
+        execute=1
+        shift
+        ;;
+      -n|--dry-run)
+        execute=0
+        shift
+        ;;
+      -h|--help)
+        help_ren
+        return 0
+        ;;
+      --)
+        shift
+        while [ "$#" -gt 0 ]; do
+          files+=("$1")
+          shift
+        done
+        ;;
+      -*)
+        die "unknown option for ren: $1"
+        ;;
+      *)
+        files+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  [ "${#files[@]}" -gt 0 ] || die "ren needs at least one file"
+  if [ -z "$strip_suffix" ] && [ -z "$ext_pair" ] && [ "$from_set" -eq 0 ]; then
+    die "ren needs one rename rule: -x, -e, or -f/-t"
+  fi
+  if [ "$from_set" -eq 1 ] && [ "$to_set" -eq 0 ]; then
+    die "--from needs --to"
+  fi
+  if [ "$from_set" -eq 0 ] && [ "$to_set" -eq 1 ]; then
+    die "--to needs --from"
+  fi
+  if [ "$from_set" -eq 1 ] && [ -z "$from_text" ]; then
+    die "--from cannot be empty"
+  fi
+
+  local ext_old="" ext_new=""
+  if [ -n "$ext_pair" ]; then
+    case "$ext_pair" in
+      *:*)
+        ext_old="${ext_pair%%:*}"
+        ext_new="${ext_pair#*:}"
+        ext_old="$(strip_dot "$ext_old")"
+        ext_new="$(strip_dot "$ext_new")"
+        [ -n "$ext_old" ] || die "--ext OLD:NEW needs OLD"
+        [ -n "$ext_new" ] || die "--ext OLD:NEW needs NEW"
+        ;;
+      *)
+        die "--ext needs OLD:NEW, for example fa:fasta"
+        ;;
+    esac
+  fi
+
+  local path dir base new target changed=0 planned=0 skipped=0
+  for path in "${files[@]}"; do
+    if [ ! -e "$path" ]; then
+      printf 'SKIP missing\t%s\n' "$path" >&2
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    dir="${path%/*}"
+    base="${path##*/}"
+    if [ "$dir" = "$path" ]; then
+      dir=""
+    fi
+    new="$base"
+
+    if [ -n "$strip_suffix" ]; then
+      case "$new" in
+        *"$strip_suffix") new="${new%"$strip_suffix"}" ;;
+      esac
+    fi
+
+    if [ -n "$ext_pair" ]; then
+      case "$new" in
+        *."$ext_old") new="${new%."$ext_old"}.$ext_new" ;;
+      esac
+    fi
+
+    if [ "$from_set" -eq 1 ]; then
+      new="$(replace_all "$new" "$from_text" "$to_text")"
+    fi
+
+    if [ "$new" = "$base" ]; then
+      printf 'SKIP unchanged\t%s\n' "$path"
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    if [ -n "$dir" ]; then
+      target="$dir/$new"
+    else
+      target="$new"
+    fi
+
+    if [ -e "$target" ]; then
+      printf 'SKIP exists\t%s -> %s\n' "$path" "$target" >&2
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    planned=$((planned + 1))
+    if [ "$execute" -eq 1 ]; then
+      mv "$path" "$target" || die "failed to rename: $path"
+      printf 'RENAMED\t%s -> %s\n' "$path" "$target"
+      changed=$((changed + 1))
+    else
+      printf 'DRY-RUN\t%s -> %s\n' "$path" "$target"
+    fi
+  done
+
+  if [ "$execute" -eq 0 ]; then
+    printf 'Preview only. Add -y to rename. planned=%d skipped=%d\n' "$planned" "$skipped"
+  else
+    printf 'Done. renamed=%d skipped=%d\n' "$changed" "$skipped"
+  fi
+}
+
 cmd_subdir_size() {
   local dir="."
   local reverse=""
@@ -736,6 +939,9 @@ dispatch() {
       ;;
     path)
       cmd_path "$@"
+      ;;
+    ren)
+      cmd_ren "$@"
       ;;
     size)
       cmd_subdir_size "$@"

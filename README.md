@@ -8,13 +8,14 @@ English | [中文](README.zh.md)
 xSHELL <command> [options]
 ```
 
-Current version: `0.1.0`
+Current version: `0.2.0`
 
 Examples:
 
 ```bash
 xSHELL ext -e tsv -m .
 xSHELL find '*.fa*' -s size -r .
+xSHELL ren -e fa:fasta *.fa
 xSHELL top -u USER -s mem
 ```
 
@@ -79,6 +80,7 @@ Current commands:
 ext
 find
 path
+ren
 size
 top
 version
@@ -91,6 +93,7 @@ Meanings:
 | `ext` | Check child directories by file extension, such as which directories contain or miss `tsv`, `fasta`, `fa`, or `vcf` files |
 | `find` | Recursively find files or directories and sort by name, size, or modified time |
 | `path` | Store and print frequently used paths, such as genome FASTA paths |
+| `ren` | Rename files in batch, with preview by default |
 | `size` | Show disk usage for immediate child directories |
 | `top` | Show process snapshots, such as tasks from one user, one PID, or processes sorted by CPU or memory |
 | `version` | Print the installed xSHELL version |
@@ -216,6 +219,43 @@ The default path database is:
 ```text
 ~/.config/xSHELL/paths.tsv
 ```
+
+## ren
+
+`ren` renames files in batch. It previews the rename plan by default. Add `-y` to actually rename files.
+
+Remove a long suffix:
+
+```bash
+xSHELL ren -x .chr.removedTE.v1.longest.pep.fa *.fa
+```
+
+Change extension `fa` to `fasta`:
+
+```bash
+xSHELL ren -e fa:fasta *.fa
+```
+
+Rename one FASTQ file:
+
+```bash
+xSHELL ren -f _1.fastq -t .RNAseq_1.fastq ALB27_1.fastq
+```
+
+Batch rename FASTQ files and execute:
+
+```bash
+xSHELL ren -f _1.fastq -t .RNAseq_1.fastq *_1.fastq -y
+```
+
+Common options:
+
+- `-x TEXT` or `--strip TEXT` removes TEXT when it appears at the end of the filename
+- `-e OLD:NEW` or `--ext OLD:NEW` changes extension OLD to NEW
+- `-f TEXT` or `--from TEXT` selects text to replace
+- `-t TEXT` or `--to TEXT` sets replacement text
+- `-y` or `--yes` executes the rename
+- `-n` or `--dry-run` previews only, the default
 
 ## size
 

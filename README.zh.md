@@ -8,13 +8,14 @@
 xSHELL <功能名> [参数]
 ```
 
-当前版本：`0.1.0`
+当前版本：`0.2.0`
 
 例如：
 
 ```bash
 xSHELL ext -e tsv -m .
 xSHELL find '*.fa*' -s size -r .
+xSHELL ren -e fa:fasta *.fa
 xSHELL top -u USER -s mem
 ```
 
@@ -79,6 +80,7 @@ xSHELL help top
 ext
 find
 path
+ren
 size
 top
 version
@@ -91,6 +93,7 @@ version
 | `ext` | 根据文件后缀检查子目录，例如哪些子目录有 `tsv`、`fasta`、`fa`、`vcf` 文件，哪些没有 |
 | `find` | 在目录中递归查找文件或目录，并可按名称、大小、修改时间排序 |
 | `path` | 保存和打印常用路径，例如常用基因组 fasta 文件路径 |
+| `ren` | 批量修改文件名，默认先预览 |
 | `size` | 查看当前目录下各个子目录的占用空间 |
 | `top` | 查看进程信息，例如某个用户的任务、某个 PID、按 CPU 或内存排序 |
 | `version` | 打印当前安装的 xSHELL 版本 |
@@ -216,6 +219,43 @@ xSHELL path db
 ```text
 ~/.config/xSHELL/paths.tsv
 ```
+
+## ren
+
+`ren` 用于批量修改文件名。默认只预览改名计划；确认无误后加 `-y` 执行。
+
+去掉很长的结尾后缀：
+
+```bash
+xSHELL ren -x .chr.removedTE.v1.longest.pep.fa *.fa
+```
+
+把后缀 `fa` 改成 `fasta`：
+
+```bash
+xSHELL ren -e fa:fasta *.fa
+```
+
+修改一个 FASTQ 文件名：
+
+```bash
+xSHELL ren -f _1.fastq -t .RNAseq_1.fastq ALB27_1.fastq
+```
+
+批量修改 FASTQ 文件名并执行：
+
+```bash
+xSHELL ren -f _1.fastq -t .RNAseq_1.fastq *_1.fastq -y
+```
+
+常用参数：
+
+- `-x TEXT` 或 `--strip TEXT` 去掉文件名结尾处的 TEXT
+- `-e OLD:NEW` 或 `--ext OLD:NEW` 把后缀 OLD 改成 NEW
+- `-f TEXT` 或 `--from TEXT` 指定要替换的文本
+- `-t TEXT` 或 `--to TEXT` 指定替换后的文本
+- `-y` 或 `--yes` 执行改名
+- `-n` 或 `--dry-run` 只预览，默认值
 
 ## size
 
