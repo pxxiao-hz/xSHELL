@@ -3,6 +3,7 @@
 set -u
 
 PROG="$(basename "$0")"
+VERSION="0.1.0"
 CONFIG_DIR="${XSHELL_CONFIG_DIR:-$HOME/.config/xSHELL}"
 PATH_DB="$CONFIG_DIR/paths.tsv"
 
@@ -24,11 +25,13 @@ ensure_config() {
 usage() {
   cat <<'EOF'
 xSHELL - small shell helper collection
+Version: 0.1.0
 
 Usage:
   xSHELL <name> [args]
   xSHELL list
   xSHELL help [name]
+  xSHELL version
 
 Commands:
   ext           Print child directories that have or miss files by extension
@@ -36,6 +39,7 @@ Commands:
   path          Store and print frequently used paths
   size          Show child directory sizes
   top           Show process snapshots by user, PID, CPU, or memory
+  version       Print xSHELL version
 
 Examples:
   xSHELL ext -e tsv .
@@ -48,7 +52,11 @@ EOF
 }
 
 list_functions() {
-  printf '%s\n' ext find path size top
+  printf '%s\n' ext find path size top version
+}
+
+print_version() {
+  printf 'xSHELL %s\n' "$VERSION"
 }
 
 help_ext_dirs() {
@@ -713,6 +721,9 @@ dispatch() {
   case "$cmd" in
     list)
       list_functions
+      ;;
+    version|-v|--version)
+      print_version
       ;;
     help|-h|--help)
       help_function "${1:-}"

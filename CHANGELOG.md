@@ -1,0 +1,18 @@
+# Changelog
+
+All notable changes to xSHELL are documented here.
+
+The format follows the spirit of Keep a Changelog, and versions use semantic versioning.
+
+## [0.1.0] - 2026-05-23
+
+### Added
+
+- Initial `xSHELL` Bash CLI.
+- Added `ext` for checking child directories by file extension.
+- Added `find` for recursive file or directory search with sorting.
+- Added `path` for storing and printing frequently used paths.
+- Added `size` for child directory disk usage summaries.
+- Added `top` for process snapshots by user, PID, CPU, memory, command text, and watch mode.
+- Added English and Chinese README files.
+- Added `version`, `-v`, and `--version` output.

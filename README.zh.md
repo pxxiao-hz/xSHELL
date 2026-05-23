@@ -8,6 +8,8 @@
 xSHELL <功能名> [参数]
 ```
 
+当前版本：`0.1.0`
+
 例如：
 
 ```bash
@@ -46,6 +48,13 @@ export PATH="$HOME/bin:$PATH"
 xSHELL list
 ```
 
+查看版本：
+
+```bash
+xSHELL version
+xSHELL -v
+```
+
 查看总帮助：
 
 ```bash
@@ -72,6 +81,7 @@ find
 path
 size
 top
+version
 ```
 
 含义如下：
@@ -83,6 +93,7 @@ top
 | `path` | 保存和打印常用路径，例如常用基因组 fasta 文件路径 |
 | `size` | 查看当前目录下各个子目录的占用空间 |
 | `top` | 查看进程信息，例如某个用户的任务、某个 PID、按 CPU 或内存排序 |
+| `version` | 打印当前安装的 xSHELL 版本 |
 
 ## ext
 

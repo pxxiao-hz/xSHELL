@@ -8,6 +8,8 @@ English | [中文](README.zh.md)
 xSHELL <command> [options]
 ```
 
+Current version: `0.1.0`
+
 Examples:
 
 ```bash
@@ -46,6 +48,13 @@ List all commands:
 xSHELL list
 ```
 
+Show the version:
+
+```bash
+xSHELL version
+xSHELL -v
+```
+
 Show general help:
 
 ```bash
@@ -72,6 +81,7 @@ find
 path
 size
 top
+version
 ```
 
 Meanings:
@@ -83,6 +93,7 @@ Meanings:
 | `path` | Store and print frequently used paths, such as genome FASTA paths |
 | `size` | Show disk usage for immediate child directories |
 | `top` | Show process snapshots, such as tasks from one user, one PID, or processes sorted by CPU or memory |
+| `version` | Print the installed xSHELL version |
 
 ## ext
 
