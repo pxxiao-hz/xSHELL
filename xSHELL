@@ -1,0 +1,741 @@
+#!/usr/bin/env bash
+
+set -u
+
+PROG="$(basename "$0")"
+CONFIG_DIR="${XSHELL_CONFIG_DIR:-$HOME/.config/xSHELL}"
+PATH_DB="$CONFIG_DIR/paths.tsv"
+
+die() {
+  printf 'Error: %s\n' "$*" >&2
+  exit 1
+}
+
+ensure_config() {
+  mkdir -p "$CONFIG_DIR" || die "cannot create config dir: $CONFIG_DIR"
+  if [ ! -f "$PATH_DB" ]; then
+    {
+      printf '# name\tpath\tdescription\n'
+      printf 'ref-genome\t/data/reference/genome.fa\treference genome fasta\n'
+    } > "$PATH_DB" || die "cannot write path database: $PATH_DB"
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+xSHELL - small shell helper collection
+
+Usage:
+  xSHELL <name> [args]
+  xSHELL list
+  xSHELL help [name]
+
+Commands:
+  ext           Print child directories that have or miss files by extension
+  find          Find files/directories and sort by size, time, or name
+  path          Store and print frequently used paths
+  size          Show child directory sizes
+  top           Show process snapshots by user, PID, CPU, or memory
+
+Examples:
+  xSHELL ext -e tsv .
+  xSHELL ext -e fasta -m .
+  xSHELL find '*.fa*' -s size -r .
+  xSHELL path ref-genome
+  xSHELL top -u USER -s mem -n 20
+  xSHELL path add ref /data/reference/genome.fa 'reference genome'
+EOF
+}
+
+list_functions() {
+  printf '%s\n' ext find path size top
+}
+
+help_ext_dirs() {
+  cat <<'EOF'
+Usage:
+  xSHELL ext -e EXT [options] [DIR]
+
+Print immediate child directories under DIR according to whether they contain
+files ending with EXT. By default the check is recursive inside each child
+directory.
+
+Options:
+  -e, --ext EXT  File extension to check, such as tsv, fa, fasta, or vcf
+  --has          Print directories containing matching files (default)
+  -m, --missing  Print directories without matching files
+  -b, --both     Print status and directory: HAS<TAB>dir or MISSING<TAB>dir
+  -d, --direct   Only check files directly under each child directory
+  -h, --help     Show this help
+
+Examples:
+  xSHELL ext -e tsv .
+  xSHELL ext -e fasta -m /path/to/project
+  xSHELL ext -e vcf -b -d .
+EOF
+}
+
+help_find_file() {
+  cat <<'EOF'
+Usage:
+  xSHELL find PATTERN [options] [DIR]
+
+Find paths matching PATTERN recursively under DIR. PATTERN uses shell glob
+syntax such as '*.tsv', '*genome*', or 'ref*.fasta'.
+
+Options:
+  -s, --sort name    Sort by path/name (default)
+  -s, --sort size    Sort by file size
+  -s, --sort time    Sort by modified time
+  -r, --reverse      Reverse sort order
+  --type f|d|a       File, directory, or all path types. Default: f
+  -h, --help         Show this help
+
+Examples:
+  xSHELL find '*.tsv' -s size -r .
+  xSHELL find '*genome*' -s time /path/to/project
+  xSHELL find 'results' --type d .
+EOF
+}
+
+help_path() {
+  cat <<'EOF'
+Usage:
+  xSHELL path <action> [args]
+
+Actions:
+  list, ls                     List saved paths
+  get NAME                     Print one saved path
+  NAME                         Print one saved path
+  add NAME PATH [DESCRIPTION]  Add or replace a saved path
+  remove, rm NAME              Remove a saved path
+  db                           Print path database location
+
+Examples:
+  xSHELL path ref-genome
+  xSHELL path add ref /data/reference/genome.fa 'reference genome'
+  xSHELL path ls
+
+Shell shortcut example:
+  alias refgenome='xSHELL path ref-genome'
+EOF
+}
+
+help_subdir_size() {
+  cat <<'EOF'
+Usage:
+  xSHELL size [options] [DIR]
+
+Show disk usage for immediate child directories.
+
+Options:
+  -r, --reverse  Largest first
+  -h, --help     Show this help
+
+Examples:
+  xSHELL size .
+  xSHELL size -r /path/to/project
+EOF
+}
+
+help_top() {
+  cat <<'EOF'
+Usage:
+  xSHELL top [options]
+
+Show a process snapshot using ps. This is intended for quick non-interactive
+checks such as "which jobs is a user running?", "what is this PID?", or
+"which processes use the most memory?".
+
+Options:
+  -u, --user USER       Show processes owned by USER
+  -p, --pid PID[,PID]   Show one or more process IDs
+  -g, --grep TEXT       Keep processes whose command contains TEXT
+  -s, --sort FIELD      Sort by cpu, mem, rss, time, pid, user, or command
+  -n, --limit N         Number of rows to show. Default: 20
+  -a, --asc             Sort ascending. Default is descending
+  -w, --watch [SEC]     Refresh every SEC seconds. Default: 2
+  -h, --help            Show this help
+
+Examples:
+  xSHELL top
+  xSHELL top -u USER
+  xSHELL top -p 12345
+  xSHELL top -s mem -n 30
+  xSHELL top -s cpu -w 5
+  xSHELL top -u USER -g bwa -s rss
+EOF
+}
+
+help_function() {
+  case "${1:-}" in
+    ext) help_ext_dirs ;;
+    find) help_find_file ;;
+    path) help_path ;;
+    size) help_subdir_size ;;
+    top) help_top ;;
+    ""|help) usage ;;
+    *) die "unknown command: $1" ;;
+  esac
+}
+
+strip_dot() {
+  local ext="$1"
+  ext="${ext#.}"
+  printf '%s\n' "$ext"
+}
+
+has_matching_ext() {
+  local dir="$1"
+  local ext="$2"
+  local mode="$3"
+
+  if [ "$mode" = "direct" ]; then
+    local f
+    for f in "$dir"/*."$ext"; do
+      [ -f "$f" ] && return 0
+    done
+    return 1
+  else
+    find "$dir" -type f -name "*.$ext" -print -quit 2>/dev/null | grep -q .
+  fi
+}
+
+cmd_ext_dirs() {
+  local dir="."
+  local mode="has"
+  local ext=""
+  local depth="recursive"
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --has) mode="has"; shift ;;
+      -m|--missing) mode="missing"; shift ;;
+      -b|--both) mode="both"; shift ;;
+      -e|--ext)
+        [ "$#" -ge 2 ] || die "--ext needs a value"
+        ext="$(strip_dot "$2")"
+        shift 2
+        ;;
+      -d|--direct) depth="direct"; shift ;;
+      -h|--help) help_ext_dirs; return 0 ;;
+      --) shift; break ;;
+      -*)
+        die "unknown option for ext: $1"
+        ;;
+      *)
+        dir="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [ -n "$ext" ] || die "ext needs --ext EXT"
+  [ -d "$dir" ] || die "not a directory: $dir"
+
+  local child base found any=0
+  for child in "$dir"/*; do
+    [ -d "$child" ] || continue
+    base="${child%/}"
+    found=0
+    if has_matching_ext "$child" "$ext" "$depth"; then
+      found=1
+    fi
+
+    case "$mode:$found" in
+      has:1)
+        printf '%s\n' "$base"
+        any=1
+        ;;
+      missing:0)
+        printf '%s\n' "$base"
+        any=1
+        ;;
+      both:1)
+        printf 'HAS\t%s\n' "$base"
+        any=1
+        ;;
+      both:0)
+        printf 'MISSING\t%s\n' "$base"
+        any=1
+        ;;
+    esac
+  done
+
+  [ "$any" -eq 1 ] || return 1
+}
+
+stat_size() {
+  if stat -f '%z' "$1" >/dev/null 2>&1; then
+    stat -f '%z' "$1"
+  else
+    stat -c '%s' "$1"
+  fi
+}
+
+stat_mtime() {
+  if stat -f '%m' "$1" >/dev/null 2>&1; then
+    stat -f '%m' "$1"
+  else
+    stat -c '%Y' "$1"
+  fi
+}
+
+format_epoch() {
+  local epoch="$1"
+  if date -r "$epoch" '+%Y-%m-%d %H:%M:%S' >/dev/null 2>&1; then
+    date -r "$epoch" '+%Y-%m-%d %H:%M:%S'
+  else
+    date -d "@$epoch" '+%Y-%m-%d %H:%M:%S'
+  fi
+}
+
+human_kb() {
+  awk -v kb="$1" 'BEGIN {
+    if (kb < 1024) {
+      printf "%.0f KB", kb
+    } else if (kb < 1048576) {
+      printf "%.1f MB", kb / 1024
+    } else {
+      printf "%.1f GB", kb / 1048576
+    }
+  }'
+}
+
+cmd_find_file() {
+  local pattern=""
+  local dir="."
+  local sort_by="name"
+  local reverse=""
+  local type="f"
+
+  if [ "$#" -eq 0 ]; then
+    help_find_file
+    return 0
+  fi
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -s|--sort)
+        [ "$#" -ge 2 ] || die "--sort needs name, size, or time"
+        case "$2" in
+          name|size|time|mtime) sort_by="$2" ;;
+          *) die "unknown sort field: $2" ;;
+        esac
+        shift 2
+        ;;
+      -r|--reverse) reverse="-r"; shift ;;
+      --type)
+        [ "$#" -ge 2 ] || die "--type needs f, d, or a"
+        case "$2" in
+          f|d|a) type="$2" ;;
+          *) die "unknown type: $2" ;;
+        esac
+        shift 2
+        ;;
+      -h|--help) help_find_file; return 0 ;;
+      --) shift; break ;;
+      -*)
+        die "unknown option for find: $1"
+        ;;
+      *)
+        if [ -z "$pattern" ]; then
+          pattern="$1"
+        else
+          dir="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  [ -n "$pattern" ] || die "missing PATTERN"
+  [ -d "$dir" ] || die "not a directory: $dir"
+
+  local find_args=("$dir")
+  if [ "$type" != "a" ]; then
+    find_args+=(-type "$type")
+  fi
+  find_args+=(-name "$pattern" -print0)
+
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/xshell-find.XXXXXX")" || die "cannot create temp file"
+
+  local path size mtime display_time
+  while IFS= read -r -d '' path; do
+    case "$sort_by" in
+      size)
+        size="$(stat_size "$path" 2>/dev/null || printf '0')"
+        printf '%020d\t%s\n' "$size" "$path" >> "$tmp"
+        ;;
+      time|mtime)
+        mtime="$(stat_mtime "$path" 2>/dev/null || printf '0')"
+        printf '%020d\t%s\n' "$mtime" "$path" >> "$tmp"
+        ;;
+      name)
+        printf '%s\n' "$path" >> "$tmp"
+        ;;
+    esac
+  done < <(find "${find_args[@]}" 2>/dev/null)
+
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  case "$sort_by" in
+    size)
+      sort $reverse -n "$tmp" | while IFS=$'\t' read -r size path; do
+        size="$((10#$size))"
+        printf '%12d\t%s\n' "$size" "$path"
+      done
+      ;;
+    time|mtime)
+      sort $reverse -n "$tmp" | while IFS=$'\t' read -r mtime path; do
+        mtime="$((10#$mtime))"
+        display_time="$(format_epoch "$mtime")"
+        printf '%s\t%s\n' "$display_time" "$path"
+      done
+      ;;
+    name)
+      sort $reverse "$tmp"
+      ;;
+  esac
+
+  rm -f "$tmp"
+}
+
+cmd_path() {
+  ensure_config
+  local action="${1:-list}"
+  shift || true
+
+  case "$action" in
+    list|ls)
+      awk -F '\t' 'BEGIN { OFS="\t" } /^[[:space:]]*#/ || NF < 2 { next } { print $1, $2, $3 }' "$PATH_DB"
+      ;;
+    get)
+      [ "$#" -ge 1 ] || die "path get needs NAME"
+      local name="$1"
+      local found
+      found="$(awk -F '\t' -v key="$name" '$1 == key { print $2; found=1; exit } END { if (!found) exit 1 }' "$PATH_DB")" || die "unknown path name: $name"
+      printf '%s\n' "$found"
+      ;;
+    add)
+      [ "$#" -ge 2 ] || die "path add needs NAME and PATH"
+      local name="$1"
+      local value="$2"
+      local desc="${3:-}"
+      local tmp
+      tmp="$(mktemp "${TMPDIR:-/tmp}/xshell-path.XXXXXX")" || die "cannot create temp file"
+      awk -F '\t' -v key="$name" '$1 != key { print }' "$PATH_DB" > "$tmp"
+      printf '%s\t%s\t%s\n' "$name" "$value" "$desc" >> "$tmp"
+      mv "$tmp" "$PATH_DB" || die "cannot update path database"
+      printf 'saved\t%s\t%s\n' "$name" "$value"
+      ;;
+    remove|rm)
+      [ "$#" -ge 1 ] || die "path remove needs NAME"
+      local name="$1"
+      local tmp
+      tmp="$(mktemp "${TMPDIR:-/tmp}/xshell-path.XXXXXX")" || die "cannot create temp file"
+      awk -F '\t' -v key="$name" '$1 != key { print }' "$PATH_DB" > "$tmp"
+      mv "$tmp" "$PATH_DB" || die "cannot update path database"
+      printf 'removed\t%s\n' "$name"
+      ;;
+    db)
+      printf '%s\n' "$PATH_DB"
+      ;;
+    -h|--help|help)
+      help_path
+      ;;
+    *)
+      local found
+      found="$(awk -F '\t' -v key="$action" '$1 == key { print $2; found=1; exit } END { if (!found) exit 1 }' "$PATH_DB")" || die "unknown path name or action: $action"
+      printf '%s\n' "$found"
+      ;;
+  esac
+}
+
+cmd_subdir_size() {
+  local dir="."
+  local reverse=""
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -r|--reverse) reverse="-r"; shift ;;
+      -h|--help) help_subdir_size; return 0 ;;
+      --) shift; break ;;
+      -*)
+        die "unknown option for size: $1"
+        ;;
+      *)
+        dir="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [ -d "$dir" ] || die "not a directory: $dir"
+
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/xshell-du.XXXXXX")" || die "cannot create temp file"
+  local child blocks
+  for child in "$dir"/*; do
+    [ -d "$child" ] || continue
+    blocks="$(du -sk "$child" 2>/dev/null | awk '{ print $1 }')"
+    printf '%020d\t%s\n' "$blocks" "$child" >> "$tmp"
+  done
+
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
+    return 1
+  fi
+
+  sort $reverse -n "$tmp" | while IFS=$'\t' read -r blocks child; do
+    blocks="$((10#$blocks))"
+    printf '%10s\t%s\n' "$(human_kb "$blocks")" "$child"
+  done
+
+  rm -f "$tmp"
+}
+
+top_sort_key() {
+  local sort_by="$1"
+  awk -F '\t' -v sort_by="$sort_by" '
+    function etime_seconds(value, parts, time_parts, n, days, time_text) {
+      days = 0
+      time_text = value
+      if (index(value, "-") > 0) {
+        split(value, parts, "-")
+        days = parts[1]
+        time_text = parts[2]
+      }
+      n = split(time_text, time_parts, ":")
+      if (n == 3) {
+        return days * 86400 + time_parts[1] * 3600 + time_parts[2] * 60 + time_parts[3]
+      }
+      if (n == 2) {
+        return days * 86400 + time_parts[1] * 60 + time_parts[2]
+      }
+      return days * 86400 + time_parts[1]
+    }
+    {
+      if (sort_by == "cpu") {
+        key = $4 + 0
+      } else if (sort_by == "mem") {
+        key = $5 + 0
+      } else if (sort_by == "rss") {
+        key = $6 + 0
+      } else if (sort_by == "time") {
+        key = etime_seconds($7)
+      } else if (sort_by == "pid") {
+        key = $2 + 0
+      } else if (sort_by == "user") {
+        key = $1
+      } else {
+        key = $8
+      }
+      print key "\t" $0
+    }
+  '
+}
+
+top_format_rows() {
+  local limit="$1"
+  awk -F '\t' -v limit="$limit" '
+    BEGIN {
+      printf "%8s %-16s %8s %6s %6s %10s %-12s %s\n", "PID", "USER", "PPID", "CPU%", "MEM%", "RSS(KB)", "ELAPSED", "COMMAND"
+    }
+    NR <= limit {
+      printf "%8s %-16s %8s %6s %6s %10s %-12s %s\n", $2, $1, $3, $4, $5, $6, $7, $8
+    }
+  '
+}
+
+run_top_once() {
+  local user_filter="$1"
+  local pid_filter="$2"
+  local grep_filter="$3"
+  local sort_by="$4"
+  local limit="$5"
+  local asc="$6"
+
+  local rows sort_reverse sort_numeric
+  rows="$(mktemp "${TMPDIR:-/tmp}/xshell-top.XXXXXX")" || die "cannot create temp file"
+
+  if ! ps -eo user=,pid=,ppid=,pcpu=,pmem=,rss=,etime=,args= 2>/dev/null | awk \
+    -v user_filter="$user_filter" \
+    -v pid_filter="$pid_filter" \
+    -v grep_filter="$grep_filter" '
+      BEGIN {
+        if (pid_filter != "") {
+          split(pid_filter, pid_values, ",")
+          for (i in pid_values) {
+            wanted_pid[pid_values[i]] = 1
+          }
+        }
+      }
+      {
+        command = ""
+        for (i = 8; i <= NF; i++) {
+          command = command (command == "" ? "" : " ") $i
+        }
+        if (user_filter != "" && $1 != user_filter) next
+        if (pid_filter != "" && !($2 in wanted_pid)) next
+        if (grep_filter != "" && index(command, grep_filter) == 0) next
+        printf "%s\t%s\t%s\t%.1f\t%.1f\t%s\t%s\t%s\n", $1, $2, $3, $4, $5, $6, $7, command
+      }
+    ' > "$rows"; then
+    rm -f "$rows"
+    die "cannot read process list with ps"
+  fi
+
+  if [ ! -s "$rows" ]; then
+    rm -f "$rows"
+    return 1
+  fi
+
+  sort_reverse="-r"
+  [ "$asc" -eq 1 ] && sort_reverse=""
+
+  case "$sort_by" in
+    user|command) sort_numeric="" ;;
+    *) sort_numeric="-n" ;;
+  esac
+
+  top_sort_key "$sort_by" < "$rows" |
+    sort -t "$(printf '\t')" $sort_numeric $sort_reverse -k1,1 |
+    cut -f2- |
+    top_format_rows "$limit"
+
+  rm -f "$rows"
+}
+
+cmd_top() {
+  local user_filter=""
+  local pid_filter=""
+  local grep_filter=""
+  local sort_by="cpu"
+  local limit="20"
+  local asc=0
+  local watch_seconds=""
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -u|--user)
+        [ "$#" -ge 2 ] || die "--user needs a value"
+        user_filter="$2"
+        shift 2
+        ;;
+      -p|--pid)
+        [ "$#" -ge 2 ] || die "--pid needs a value"
+        pid_filter="$2"
+        shift 2
+        ;;
+      -g|--grep|--command)
+        [ "$#" -ge 2 ] || die "--grep needs a value"
+        grep_filter="$2"
+        shift 2
+        ;;
+      -s|--sort)
+        [ "$#" -ge 2 ] || die "--sort needs a field"
+        case "$2" in
+          cpu|mem|rss|time|pid|user|command) sort_by="$2" ;;
+          *) die "unknown top sort field: $2" ;;
+        esac
+        shift 2
+        ;;
+      -n|--limit)
+        [ "$#" -ge 2 ] || die "--limit needs a number"
+        case "$2" in
+          ''|*[!0-9]*) die "--limit must be a positive integer" ;;
+          *) limit="$2" ;;
+        esac
+        shift 2
+        ;;
+      -a|--asc)
+        asc=1
+        shift
+        ;;
+      -w|--watch)
+        if [ "$#" -ge 2 ] && [ "${2#-}" = "$2" ]; then
+          case "$2" in
+            ''|*[!0-9]*) die "--watch must be a positive integer number of seconds" ;;
+            *) watch_seconds="$2" ;;
+          esac
+          shift 2
+        else
+          watch_seconds="2"
+          shift
+        fi
+        ;;
+      -h|--help)
+        help_top
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        die "unknown option for top: $1"
+        ;;
+      *)
+        grep_filter="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$limit" -lt 1 ]; then
+    die "--limit must be greater than 0"
+  fi
+
+  if [ -n "$watch_seconds" ]; then
+    if [ "$watch_seconds" -lt 1 ]; then
+      die "--watch must be greater than 0"
+    fi
+    while :; do
+      clear
+      date '+%Y-%m-%d %H:%M:%S'
+      run_top_once "$user_filter" "$pid_filter" "$grep_filter" "$sort_by" "$limit" "$asc" || true
+      sleep "$watch_seconds"
+    done
+  else
+    run_top_once "$user_filter" "$pid_filter" "$grep_filter" "$sort_by" "$limit" "$asc"
+  fi
+}
+
+dispatch() {
+  local cmd="${1:-help}"
+  shift || true
+
+  case "$cmd" in
+    list)
+      list_functions
+      ;;
+    help|-h|--help)
+      help_function "${1:-}"
+      ;;
+    ext)
+      cmd_ext_dirs "$@"
+      ;;
+    find)
+      cmd_find_file "$@"
+      ;;
+    path)
+      cmd_path "$@"
+      ;;
+    size)
+      cmd_subdir_size "$@"
+      ;;
+    top)
+      cmd_top "$@"
+      ;;
+    *)
+      die "unknown command: $cmd. Run: $PROG help"
+      ;;
+  esac
+}
+
+dispatch "$@"
