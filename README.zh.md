@@ -8,7 +8,7 @@
 xSHELL <功能名> [参数]
 ```
 
-当前版本：`0.2.0`
+当前版本：`0.3.0`
 
 例如：
 
@@ -158,6 +158,18 @@ xSHELL find '*.fa*' -s size -r .
 xSHELL find '*genome*' -s time -r .
 ```
 
+查找内容中包含某个特殊字符的 FASTA 文件：
+
+```bash
+xSHELL find '*.fa' -c '*'
+```
+
+查找包含 `>` 的 FASTA 文件，并打印匹配次数：
+
+```bash
+xSHELL find '*.fa' -c '>' --count
+```
+
 查找名为 `results` 的目录：
 
 ```bash
@@ -170,6 +182,8 @@ xSHELL find 'results' --type d .
 - `-s size` 或 `--sort size` 按文件大小排序
 - `-s time` 或 `--sort time` 按修改时间排序
 - `-r` 或 `--reverse` 反向排序，例如从大到小、从新到旧
+- `-c TEXT` 或 `--contains TEXT` 只保留内容中包含 TEXT 的文件
+- `--count` 和 `-c` 一起使用时，打印匹配次数
 - `--type f` 只查找文件，默认值
 - `--type d` 只查找目录
 - `--type a` 查找所有类型

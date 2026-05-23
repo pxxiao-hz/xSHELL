@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 xSHELL <command> [options]
 ```
 
-Current version: `0.2.0`
+Current version: `0.3.0`
 
 Examples:
 
@@ -158,6 +158,18 @@ Find files whose names contain `genome`, sorted by modified time, newest first:
 xSHELL find '*genome*' -s time -r .
 ```
 
+Find FASTA files whose contents contain a special character:
+
+```bash
+xSHELL find '*.fa' -c '*'
+```
+
+Find FASTA files containing `>` and print match counts:
+
+```bash
+xSHELL find '*.fa' -c '>' --count
+```
+
 Find directories named `results`:
 
 ```bash
@@ -170,6 +182,8 @@ Common options:
 - `-s size` or `--sort size` sorts by file size
 - `-s time` or `--sort time` sorts by modified time
 - `-r` or `--reverse` reverses the order, such as largest first or newest first
+- `-c TEXT` or `--contains TEXT` keeps files whose contents contain TEXT
+- `--count` prints match counts when used with `-c`
 - `--type f` finds files only, the default
 - `--type d` finds directories only
 - `--type a` finds all path types

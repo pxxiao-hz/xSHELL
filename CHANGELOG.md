@@ -4,6 +4,13 @@ All notable changes to xSHELL are documented here.
 
 The format follows the spirit of Keep a Changelog, and versions use semantic versioning.
 
+## [0.3.0] - 2026-05-23
+
+### Added
+
+- Added `find -c TEXT` / `find --contains TEXT` to keep files whose contents contain a fixed string.
+- Added `find --count` to print fixed-string match counts with `-c`.
+
 ## [0.2.0] - 2026-05-23
 
 ### Added

@@ -3,7 +3,7 @@
 set -u
 
 PROG="$(basename "$0")"
-VERSION="0.2.0"
+VERSION="0.3.0"
 CONFIG_DIR="${XSHELL_CONFIG_DIR:-$HOME/.config/xSHELL}"
 PATH_DB="$CONFIG_DIR/paths.tsv"
 
@@ -25,7 +25,7 @@ ensure_config() {
 usage() {
   cat <<'EOF'
 xSHELL - small shell helper collection
-Version: 0.2.0
+Version: 0.3.0
 
 Usage:
   xSHELL <name> [args]
@@ -98,12 +98,16 @@ Options:
   -s, --sort size    Sort by file size
   -s, --sort time    Sort by modified time
   -r, --reverse      Reverse sort order
+  -c, --contains TXT Keep files containing TXT
+  --count            With -c, print match count before each file
   --type f|d|a       File, directory, or all path types. Default: f
   -h, --help         Show this help
 
 Examples:
   xSHELL find '*.tsv' -s size -r .
   xSHELL find '*genome*' -s time /path/to/project
+  xSHELL find '*.fa' -c '*'
+  xSHELL find '*.fa' -c '>' --count
   xSHELL find 'results' --type d .
 EOF
 }
@@ -344,6 +348,9 @@ cmd_find_file() {
   local sort_by="name"
   local reverse=""
   local type="f"
+  local contains=""
+  local contains_set=0
+  local show_count=0
 
   if [ "$#" -eq 0 ]; then
     help_find_file
@@ -361,6 +368,16 @@ cmd_find_file() {
         shift 2
         ;;
       -r|--reverse) reverse="-r"; shift ;;
+      -c|--contains)
+        [ "$#" -ge 2 ] || die "--contains needs a value"
+        contains="$2"
+        contains_set=1
+        shift 2
+        ;;
+      --count)
+        show_count=1
+        shift
+        ;;
       --type)
         [ "$#" -ge 2 ] || die "--type needs f, d, or a"
         case "$2" in
@@ -387,9 +404,14 @@ cmd_find_file() {
 
   [ -n "$pattern" ] || die "missing PATTERN"
   [ -d "$dir" ] || die "not a directory: $dir"
+  if [ "$contains_set" -eq 1 ] && [ "$type" = "d" ]; then
+    die "--contains can only be used with files"
+  fi
 
   local find_args=("$dir")
-  if [ "$type" != "a" ]; then
+  if [ "$contains_set" -eq 1 ]; then
+    find_args+=(-type f)
+  elif [ "$type" != "a" ]; then
     find_args+=(-type "$type")
   fi
   find_args+=(-name "$pattern" -print0)
@@ -397,19 +419,40 @@ cmd_find_file() {
   local tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/xshell-find.XXXXXX")" || die "cannot create temp file"
 
-  local path size mtime display_time
+  local path size mtime display_time count
   while IFS= read -r -d '' path; do
+    if [ "$contains_set" -eq 1 ]; then
+      if ! grep -I -F -q -- "$contains" "$path" 2>/dev/null; then
+        continue
+      fi
+    fi
+
     case "$sort_by" in
       size)
         size="$(stat_size "$path" 2>/dev/null || printf '0')"
-        printf '%020d\t%s\n' "$size" "$path" >> "$tmp"
+        if [ "$show_count" -eq 1 ] && [ "$contains_set" -eq 1 ]; then
+          count="$(grep -I -F -o -- "$contains" "$path" 2>/dev/null | wc -l | awk '{ print $1 }')"
+          printf '%020d\t%s\t%s\n' "$size" "$count" "$path" >> "$tmp"
+        else
+          printf '%020d\t%s\n' "$size" "$path" >> "$tmp"
+        fi
         ;;
       time|mtime)
         mtime="$(stat_mtime "$path" 2>/dev/null || printf '0')"
-        printf '%020d\t%s\n' "$mtime" "$path" >> "$tmp"
+        if [ "$show_count" -eq 1 ] && [ "$contains_set" -eq 1 ]; then
+          count="$(grep -I -F -o -- "$contains" "$path" 2>/dev/null | wc -l | awk '{ print $1 }')"
+          printf '%020d\t%s\t%s\n' "$mtime" "$count" "$path" >> "$tmp"
+        else
+          printf '%020d\t%s\n' "$mtime" "$path" >> "$tmp"
+        fi
         ;;
       name)
-        printf '%s\n' "$path" >> "$tmp"
+        if [ "$show_count" -eq 1 ] && [ "$contains_set" -eq 1 ]; then
+          count="$(grep -I -F -o -- "$contains" "$path" 2>/dev/null | wc -l | awk '{ print $1 }')"
+          printf '%s\t%s\n' "$path" "$count" >> "$tmp"
+        else
+          printf '%s\n' "$path" >> "$tmp"
+        fi
         ;;
     esac
   done < <(find "${find_args[@]}" 2>/dev/null)
@@ -421,20 +464,36 @@ cmd_find_file() {
 
   case "$sort_by" in
     size)
-      sort $reverse -n "$tmp" | while IFS=$'\t' read -r size path; do
+      sort $reverse -n "$tmp" | while IFS=$'\t' read -r size count path; do
         size="$((10#$size))"
-        printf '%12d\t%s\n' "$size" "$path"
+        if [ "$show_count" -eq 1 ] && [ "$contains_set" -eq 1 ]; then
+          printf '%12d\t%8s\t%s\n' "$size" "$count" "$path"
+        else
+          path="$count"
+          printf '%12d\t%s\n' "$size" "$path"
+        fi
       done
       ;;
     time|mtime)
-      sort $reverse -n "$tmp" | while IFS=$'\t' read -r mtime path; do
+      sort $reverse -n "$tmp" | while IFS=$'\t' read -r mtime count path; do
         mtime="$((10#$mtime))"
         display_time="$(format_epoch "$mtime")"
-        printf '%s\t%s\n' "$display_time" "$path"
+        if [ "$show_count" -eq 1 ] && [ "$contains_set" -eq 1 ]; then
+          printf '%s\t%8s\t%s\n' "$display_time" "$count" "$path"
+        else
+          path="$count"
+          printf '%s\t%s\n' "$display_time" "$path"
+        fi
       done
       ;;
     name)
-      sort $reverse "$tmp"
+      if [ "$show_count" -eq 1 ] && [ "$contains_set" -eq 1 ]; then
+        sort $reverse "$tmp" | while IFS=$'\t' read -r path count; do
+          printf '%8s\t%s\n' "$count" "$path"
+        done
+      else
+        sort $reverse "$tmp"
+      fi
       ;;
   esac
 
