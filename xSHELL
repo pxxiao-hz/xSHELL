@@ -3,7 +3,7 @@
 set -u
 
 PROG="$(basename "$0")"
-VERSION="0.3.0"
+VERSION="0.4.0"
 CONFIG_DIR="${XSHELL_CONFIG_DIR:-$HOME/.config/xSHELL}"
 PATH_DB="$CONFIG_DIR/paths.tsv"
 
@@ -25,7 +25,7 @@ ensure_config() {
 usage() {
   cat <<'EOF'
 xSHELL - small shell helper collection
-Version: 0.3.0
+Version: 0.4.0
 
 Usage:
   xSHELL <name> [args]
@@ -36,6 +36,7 @@ Usage:
 Commands:
   ext           Print child directories that have or miss files by extension
   find          Find files/directories and sort by size, time, or name
+  has           Print child directories that have or miss a named file
   path          Store and print frequently used paths
   ren           Rename files in batch with preview
   size          Show child directory sizes
@@ -46,6 +47,7 @@ Examples:
   xSHELL ext -e tsv .
   xSHELL ext -e fasta -m .
   xSHELL find '*.fa*' -s size -r .
+  xSHELL has -n .contact_map.done -m .
   xSHELL ren -e fa:fasta *.fa
   xSHELL path ref-genome
   xSHELL top -u USER -s mem -n 20
@@ -54,7 +56,7 @@ EOF
 }
 
 list_functions() {
-  printf '%s\n' ext find path ren size top version
+  printf '%s\n' ext find has path ren size top version
 }
 
 print_version() {
@@ -135,6 +137,33 @@ Shell shortcut example:
 EOF
 }
 
+help_has() {
+  cat <<'EOF'
+Usage:
+  xSHELL has -n NAME [options] [DIR]
+
+Print immediate child directories under DIR according to whether they contain
+a file named NAME. By default, only files directly inside each child directory
+are checked.
+
+Options:
+  -n, --name NAME  File name to check, such as .contact_map.done
+  --has           Print directories containing NAME (default)
+  -m, --missing   Print directories without NAME
+  -b, --both      Print status and directory: HAS<TAB>dir or MISSING<TAB>dir
+  -r, --recursive Search recursively inside each child directory
+  -D, --depth N   Search up to N levels inside each child directory
+  -h, --help      Show this help
+
+Examples:
+  xSHELL has -n .contact_map.done .
+  xSHELL has -n .contact_map.done -m .
+  xSHELL has -n .contact_map.done -b .
+  xSHELL has -n .contact_map.done -m -D 2 .
+  xSHELL has -n .contact_map.done -m -r /path/to/project
+EOF
+}
+
 help_ren() {
   cat <<'EOF'
 Usage:
@@ -210,6 +239,7 @@ help_function() {
   case "${1:-}" in
     ext) help_ext_dirs ;;
     find) help_find_file ;;
+    has) help_has ;;
     path) help_path ;;
     ren) help_ren ;;
     size) help_subdir_size ;;
@@ -279,6 +309,110 @@ cmd_ext_dirs() {
     base="${child%/}"
     found=0
     if has_matching_ext "$child" "$ext" "$depth"; then
+      found=1
+    fi
+
+    case "$mode:$found" in
+      has:1)
+        printf '%s\n' "$base"
+        any=1
+        ;;
+      missing:0)
+        printf '%s\n' "$base"
+        any=1
+        ;;
+      both:1)
+        printf 'HAS\t%s\n' "$base"
+        any=1
+        ;;
+      both:0)
+        printf 'MISSING\t%s\n' "$base"
+        any=1
+        ;;
+    esac
+  done
+
+  [ "$any" -eq 1 ] || return 1
+}
+
+has_named_file() {
+  local dir="$1"
+  local name="$2"
+  local mode="$3"
+
+  case "$mode" in
+    direct)
+      [ -f "$dir/$name" ]
+      ;;
+    recursive)
+      find "$dir" -type f -name "$name" -print -quit 2>/dev/null | grep -q .
+      ;;
+    *)
+      find "$dir" -type f -name "$name" -print 2>/dev/null | awk -v base="$dir/" -v max_depth="$mode" '
+        index($0, base) == 1 {
+          rel = substr($0, length(base) + 1)
+          depth = 1
+          for (i = 1; i <= length(rel); i++) {
+            if (substr(rel, i, 1) == "/") depth++
+          }
+          if (depth <= max_depth) {
+            found = 1
+            exit
+          }
+        }
+        END { exit(found ? 0 : 1) }
+      '
+      ;;
+  esac
+}
+
+cmd_has() {
+  local dir="."
+  local mode="has"
+  local name=""
+  local depth="direct"
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --has) mode="has"; shift ;;
+      -m|--missing) mode="missing"; shift ;;
+      -b|--both) mode="both"; shift ;;
+      -n|--name)
+        [ "$#" -ge 2 ] || die "--name needs a value"
+        name="$2"
+        shift 2
+        ;;
+      -r|--recursive) depth="recursive"; shift ;;
+      -D|--depth)
+        [ "$#" -ge 2 ] || die "--depth needs a positive integer"
+        case "$2" in
+          ''|*[!0-9]*) die "--depth needs a positive integer" ;;
+          0) die "--depth must be greater than 0" ;;
+          *) depth="$2" ;;
+        esac
+        shift 2
+        ;;
+      -h|--help) help_has; return 0 ;;
+      --) shift; break ;;
+      -*)
+        die "unknown option for has: $1"
+        ;;
+      *)
+        dir="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [ -n "$name" ] || die "has needs --name NAME"
+  [ -d "$dir" ] || die "not a directory: $dir"
+
+  local child base found any=0
+  for child in "$dir"/*; do
+    [ -d "$child" ] || continue
+    base="${child%/}"
+    found=0
+    if has_named_file "$child" "$name" "$depth"; then
       found=1
     fi
 
@@ -995,6 +1129,9 @@ dispatch() {
       ;;
     find)
       cmd_find_file "$@"
+      ;;
+    has)
+      cmd_has "$@"
       ;;
     path)
       cmd_path "$@"

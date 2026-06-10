@@ -8,38 +8,34 @@
 xSHELL <功能名> [参数]
 ```
 
-当前版本：`0.3.0`
+当前版本：`0.4.0`
 
 例如：
 
 ```bash
 xSHELL ext -e tsv -m .
 xSHELL find '*.fa*' -s size -r .
+xSHELL has -n .contact_map.done -m .
 xSHELL ren -e fa:fasta *.fa
 xSHELL top -u USER -s mem
 ```
 
 ## 安装
 
-在当前目录下执行：
+克隆仓库：
+
+```bash
+git clone https://github.com/pxxiao-hz/xSHELL.git
+cd xSHELL
+```
+
+给脚本添加可执行权限：
 
 ```bash
 chmod +x xSHELL
 ```
 
-然后把当前目录加入 `PATH`，或者把脚本软链接到已经在 `PATH` 里的目录。
-
-例如：
-
-```bash
-ln -s /path/to/xSHELL/xSHELL ~/bin/xSHELL
-```
-
-如果 `~/bin` 还没有加入 `PATH`，可以在 `~/.zshrc` 或 `~/.bashrc` 中加入：
-
-```bash
-export PATH="$HOME/bin:$PATH"
-```
+然后把 `xSHELL` 所在目录加入 `PATH`，或者把脚本软链接到已经在 `PATH` 里的目录。
 
 ## 查看帮助
 
@@ -79,6 +75,7 @@ xSHELL help top
 ```text
 ext
 find
+has
 path
 ren
 size
@@ -92,6 +89,7 @@ version
 | --- | --- |
 | `ext` | 根据文件后缀检查子目录，例如哪些子目录有 `tsv`、`fasta`、`fa`、`vcf` 文件，哪些没有 |
 | `find` | 在目录中递归查找文件或目录，并可按名称、大小、修改时间排序 |
+| `has` | 根据指定文件名检查子目录，例如哪些子目录有或没有 `.contact_map.done` |
 | `path` | 保存和打印常用路径，例如常用基因组 fasta 文件路径 |
 | `ren` | 批量修改文件名，默认先预览 |
 | `size` | 查看当前目录下各个子目录的占用空间 |
@@ -187,6 +185,49 @@ xSHELL find 'results' --type d .
 - `--type f` 只查找文件，默认值
 - `--type d` 只查找目录
 - `--type a` 查找所有类型
+
+## has
+
+`has` 用于检查当前目录下的子目录，判断它们是否包含某个指定文件名。
+
+查看哪些子目录有 `.contact_map.done`：
+
+```bash
+xSHELL has -n .contact_map.done .
+```
+
+查看哪些子目录没有 `.contact_map.done`：
+
+```bash
+xSHELL has -n .contact_map.done -m .
+```
+
+同时显示有和没有 `.contact_map.done` 的子目录：
+
+```bash
+xSHELL has -n .contact_map.done -b .
+```
+
+递归检查每个子目录内部：
+
+```bash
+xSHELL has -n .contact_map.done -m -r .
+```
+
+限制递归检查层级：
+
+```bash
+xSHELL has -n .contact_map.done -m -D 2 .
+```
+
+常用参数：
+
+- `-n NAME` 或 `--name NAME` 指定要检查的文件名
+- `--has` 打印包含该文件的子目录，默认值
+- `-m` 或 `--missing` 打印不包含该文件的子目录
+- `-b` 或 `--both` 同时打印两类子目录
+- `-r` 或 `--recursive` 递归检查每个子目录内部
+- `-D N` 或 `--depth N` 限制在每个子目录内部最多检查 N 层
 
 ## path
 

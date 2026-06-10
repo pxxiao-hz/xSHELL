@@ -4,6 +4,13 @@ All notable changes to xSHELL are documented here.
 
 The format follows the spirit of Keep a Changelog, and versions use semantic versioning.
 
+## [0.4.0] - 2026-06-10
+
+### Added
+
+- Added `has` for checking which child directories contain or miss a named file.
+- Supports direct checks by default, recursive checks with `-r`, and depth-limited checks with `-D N`.
+
 ## [0.3.0] - 2026-05-23
 
 ### Added

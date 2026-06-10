@@ -8,38 +8,34 @@ English | [中文](README.zh.md)
 xSHELL <command> [options]
 ```
 
-Current version: `0.3.0`
+Current version: `0.4.0`
 
 Examples:
 
 ```bash
 xSHELL ext -e tsv -m .
 xSHELL find '*.fa*' -s size -r .
+xSHELL has -n .contact_map.done -m .
 xSHELL ren -e fa:fasta *.fa
 xSHELL top -u USER -s mem
 ```
 
 ## Installation
 
-From this directory:
+Clone the repository:
+
+```bash
+git clone https://github.com/pxxiao-hz/xSHELL.git
+cd xSHELL
+```
+
+Make the script executable:
 
 ```bash
 chmod +x xSHELL
 ```
 
-Then add this directory to `PATH`, or create a symlink from a directory already in `PATH`.
-
-Example:
-
-```bash
-ln -s /path/to/xSHELL/xSHELL ~/bin/xSHELL
-```
-
-If `~/bin` is not in `PATH`, add this to `~/.zshrc` or `~/.bashrc`:
-
-```bash
-export PATH="$HOME/bin:$PATH"
-```
+Then add the xSHELL directory to `PATH`, or create a symlink from a directory already in your `PATH`.
 
 ## Help
 
@@ -79,6 +75,7 @@ Current commands:
 ```text
 ext
 find
+has
 path
 ren
 size
@@ -92,6 +89,7 @@ Meanings:
 | --- | --- |
 | `ext` | Check child directories by file extension, such as which directories contain or miss `tsv`, `fasta`, `fa`, or `vcf` files |
 | `find` | Recursively find files or directories and sort by name, size, or modified time |
+| `has` | Check child directories by a specific file name, such as which directories contain or miss `.contact_map.done` |
 | `path` | Store and print frequently used paths, such as genome FASTA paths |
 | `ren` | Rename files in batch, with preview by default |
 | `size` | Show disk usage for immediate child directories |
@@ -187,6 +185,49 @@ Common options:
 - `--type f` finds files only, the default
 - `--type d` finds directories only
 - `--type a` finds all path types
+
+## has
+
+`has` checks immediate child directories and reports whether they contain a specific file name.
+
+Show child directories that contain `.contact_map.done`:
+
+```bash
+xSHELL has -n .contact_map.done .
+```
+
+Show child directories that do not contain `.contact_map.done`:
+
+```bash
+xSHELL has -n .contact_map.done -m .
+```
+
+Show both statuses:
+
+```bash
+xSHELL has -n .contact_map.done -b .
+```
+
+Search recursively inside each child directory:
+
+```bash
+xSHELL has -n .contact_map.done -m -r .
+```
+
+Limit the search depth inside each child directory:
+
+```bash
+xSHELL has -n .contact_map.done -m -D 2 .
+```
+
+Common options:
+
+- `-n NAME` or `--name NAME` sets the file name to check
+- `--has` prints directories containing the file, the default
+- `-m` or `--missing` prints directories not containing the file
+- `-b` or `--both` prints both groups
+- `-r` or `--recursive` searches recursively inside each child directory
+- `-D N` or `--depth N` searches up to N levels inside each child directory
 
 ## path
 
