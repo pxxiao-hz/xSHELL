@@ -372,6 +372,11 @@ cmd_has() {
   local name=""
   local depth="direct"
 
+  if [ "$#" -eq 0 ]; then
+    help_has
+    return 0
+  fi
+
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --has) mode="has"; shift ;;
