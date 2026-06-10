@@ -37,6 +37,13 @@ chmod +x xSHELL
 
 Then add the xSHELL directory to `PATH`, or create a symlink from a directory already in your `PATH`.
 
+## Update
+
+```bash
+cd /path/to/xSHELL
+git pull --ff-only
+```
+
 ## Help
 
 List all commands:

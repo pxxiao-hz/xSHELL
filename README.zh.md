@@ -37,6 +37,13 @@ chmod +x xSHELL
 
 然后把 `xSHELL` 所在目录加入 `PATH`，或者把脚本软链接到已经在 `PATH` 里的目录。
 
+## 更新
+
+```bash
+cd /path/to/xSHELL
+git pull --ff-only
+```
+
 ## 查看帮助
 
 列出所有功能：
