@@ -55,17 +55,19 @@ xSHELL -v
 Show general help:
 
 ```bash
-xSHELL help
+xSHELL -h
 ```
 
 Show help for one command:
 
 ```bash
-xSHELL help ext
-xSHELL help find
-xSHELL help path
-xSHELL help size
-xSHELL help top
+xSHELL ext -h
+xSHELL find -h
+xSHELL has -h
+xSHELL path -h
+xSHELL ren -h
+xSHELL size -h
+xSHELL top -h
 ```
 
 ## Command Summary

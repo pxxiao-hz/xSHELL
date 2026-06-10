@@ -30,7 +30,7 @@ Version: 0.4.0
 Usage:
   xSHELL <name> [args]
   xSHELL list
-  xSHELL help [name]
+  xSHELL -h
   xSHELL version
 
 Commands:
@@ -244,7 +244,7 @@ help_function() {
     ren) help_ren ;;
     size) help_subdir_size ;;
     top) help_top ;;
-    ""|help) usage ;;
+    "") usage ;;
     *) die "unknown command: $1" ;;
   esac
 }
@@ -288,7 +288,7 @@ cmd_ext_dirs() {
         shift 2
         ;;
       -d|--direct) depth="direct"; shift ;;
-      -h|--help) help_ext_dirs; return 0 ;;
+      -h|-help|--help) help_ext_dirs; return 0 ;;
       --) shift; break ;;
       -*)
         die "unknown option for ext: $1"
@@ -392,7 +392,7 @@ cmd_has() {
         esac
         shift 2
         ;;
-      -h|--help) help_has; return 0 ;;
+      -h|-help|--help) help_has; return 0 ;;
       --) shift; break ;;
       -*)
         die "unknown option for has: $1"
@@ -520,7 +520,7 @@ cmd_find_file() {
         esac
         shift 2
         ;;
-      -h|--help) help_find_file; return 0 ;;
+      -h|-help|--help) help_find_file; return 0 ;;
       --) shift; break ;;
       -*)
         die "unknown option for find: $1"
@@ -674,7 +674,7 @@ cmd_path() {
     db)
       printf '%s\n' "$PATH_DB"
       ;;
-    -h|--help|help)
+    -h|-help|--help)
       help_path
       ;;
     *)
@@ -742,7 +742,7 @@ cmd_ren() {
         execute=0
         shift
         ;;
-      -h|--help)
+      -h|-help|--help)
         help_ren
         return 0
         ;;
@@ -867,7 +867,7 @@ cmd_subdir_size() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
       -r|--reverse) reverse="-r"; shift ;;
-      -h|--help) help_subdir_size; return 0 ;;
+      -h|-help|--help) help_subdir_size; return 0 ;;
       --) shift; break ;;
       -*)
         die "unknown option for size: $1"
@@ -1073,7 +1073,7 @@ cmd_top() {
           shift
         fi
         ;;
-      -h|--help)
+      -h|-help|--help)
         help_top
         return 0
         ;;
@@ -1111,7 +1111,7 @@ cmd_top() {
 }
 
 dispatch() {
-  local cmd="${1:-help}"
+  local cmd="${1:--h}"
   shift || true
 
   case "$cmd" in
@@ -1121,8 +1121,12 @@ dispatch() {
     version|-v|--version)
       print_version
       ;;
-    help|-h|--help)
-      help_function "${1:-}"
+    -h|-help|--help)
+      if [ "$#" -gt 0 ]; then
+        help_function "$1"
+      else
+        usage
+      fi
       ;;
     ext)
       cmd_ext_dirs "$@"
@@ -1146,7 +1150,7 @@ dispatch() {
       cmd_top "$@"
       ;;
     *)
-      die "unknown command: $cmd. Run: $PROG help"
+      die "unknown command: $cmd. Run: $PROG -h"
       ;;
   esac
 }

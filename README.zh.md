@@ -55,17 +55,19 @@ xSHELL -v
 查看总帮助：
 
 ```bash
-xSHELL help
+xSHELL -h
 ```
 
 查看某个功能的帮助：
 
 ```bash
-xSHELL help ext
-xSHELL help find
-xSHELL help path
-xSHELL help size
-xSHELL help top
+xSHELL ext -h
+xSHELL find -h
+xSHELL has -h
+xSHELL path -h
+xSHELL ren -h
+xSHELL size -h
+xSHELL top -h
 ```
 
 ## 功能名含义
