@@ -3,7 +3,7 @@
 set -u
 
 PROG="$(basename "$0")"
-VERSION="0.4.0"
+VERSION="0.4.1"
 CONFIG_DIR="${XSHELL_CONFIG_DIR:-$HOME/.config/xSHELL}"
 PATH_DB="$CONFIG_DIR/paths.tsv"
 
@@ -25,7 +25,7 @@ ensure_config() {
 usage() {
   cat <<'EOF'
 xSHELL - small shell helper collection
-Version: 0.4.0
+Version: 0.4.1
 
 Usage:
   xSHELL <name> [args]
@@ -143,11 +143,12 @@ Usage:
   xSHELL has -n NAME [options] [DIR]
 
 Print immediate child directories under DIR according to whether they contain
-a file named NAME. By default, only files directly inside each child directory
+a path named NAME. By default, only files directly inside each child directory
 are checked.
 
 Options:
   -n, --name NAME  File name to check, such as .contact_map.done
+  -t, --type f|d|a File, directory, or any path type. Default: f
   --has           Print directories containing NAME (default)
   -m, --missing   Print directories without NAME
   -b, --both      Print status and directory: HAS<TAB>dir or MISSING<TAB>dir
@@ -158,6 +159,7 @@ Options:
 Examples:
   xSHELL has -n .contact_map.done .
   xSHELL has -n .contact_map.done -m .
+  xSHELL has -n plots -t d -m .
   xSHELL has -n .contact_map.done -b .
   xSHELL has -n .contact_map.done -m -D 2 .
   xSHELL has -n .contact_map.done -m -r /path/to/project
@@ -339,16 +341,29 @@ has_named_file() {
   local dir="$1"
   local name="$2"
   local mode="$3"
+  local target_type="$4"
+  local find_args=("$dir")
+
+  case "$target_type" in
+    f) find_args+=(-type f) ;;
+    d) find_args+=(-type d) ;;
+    a) ;;
+  esac
+  find_args+=(-name "$name")
 
   case "$mode" in
     direct)
-      [ -f "$dir/$name" ]
+      case "$target_type" in
+        f) [ -f "$dir/$name" ] ;;
+        d) [ -d "$dir/$name" ] ;;
+        a) [ -e "$dir/$name" ] ;;
+      esac
       ;;
     recursive)
-      find "$dir" -type f -name "$name" -print -quit 2>/dev/null | grep -q .
+      find "${find_args[@]}" -print -quit 2>/dev/null | grep -q .
       ;;
     *)
-      find "$dir" -type f -name "$name" -print 2>/dev/null | awk -v base="$dir/" -v max_depth="$mode" '
+      find "${find_args[@]}" -print 2>/dev/null | awk -v base="$dir/" -v max_depth="$mode" '
         index($0, base) == 1 {
           rel = substr($0, length(base) + 1)
           depth = 1
@@ -371,6 +386,7 @@ cmd_has() {
   local mode="has"
   local name=""
   local depth="direct"
+  local target_type="f"
 
   if [ "$#" -eq 0 ]; then
     help_has
@@ -385,6 +401,14 @@ cmd_has() {
       -n|--name)
         [ "$#" -ge 2 ] || die "--name needs a value"
         name="$2"
+        shift 2
+        ;;
+      -t|--type)
+        [ "$#" -ge 2 ] || die "--type needs f, d, or a"
+        case "$2" in
+          f|d|a) target_type="$2" ;;
+          *) die "--type needs f, d, or a" ;;
+        esac
         shift 2
         ;;
       -r|--recursive) depth="recursive"; shift ;;
@@ -417,7 +441,7 @@ cmd_has() {
     [ -d "$child" ] || continue
     base="${child%/}"
     found=0
-    if has_named_file "$child" "$name" "$depth"; then
+    if has_named_file "$child" "$name" "$depth" "$target_type"; then
       found=1
     fi
 

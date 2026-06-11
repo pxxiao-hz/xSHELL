@@ -4,6 +4,12 @@ All notable changes to xSHELL are documented here.
 
 The format follows the spirit of Keep a Changelog, and versions use semantic versioning.
 
+## [0.4.1] - 2026-06-11
+
+### Added
+
+- Added `has -t f|d|a` for checking files, directories, or any path type.
+
 ## [0.4.0] - 2026-06-10
 
 ### Added

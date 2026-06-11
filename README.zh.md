@@ -8,7 +8,7 @@
 xSHELL <功能名> [参数]
 ```
 
-当前版本：`0.4.0`
+当前版本：`0.4.1`
 
 例如：
 
@@ -197,7 +197,7 @@ xSHELL find 'results' --type d .
 
 ## has
 
-`has` 用于检查当前目录下的子目录，判断它们是否包含某个指定文件名。
+`has` 用于检查当前目录下的子目录，判断它们是否包含某个指定路径名。
 
 查看哪些子目录有 `.contact_map.done`：
 
@@ -209,6 +209,12 @@ xSHELL has -n .contact_map.done .
 
 ```bash
 xSHELL has -n .contact_map.done -m .
+```
+
+查看哪些子目录没有 `plots` 目录：
+
+```bash
+xSHELL has -n plots -t d -m .
 ```
 
 同时显示有和没有 `.contact_map.done` 的子目录：
@@ -232,6 +238,7 @@ xSHELL has -n .contact_map.done -m -D 2 .
 常用参数：
 
 - `-n NAME` 或 `--name NAME` 指定要检查的文件名
+- `-t f|d|a` 或 `--type f|d|a` 检查文件、目录或任意路径类型
 - `--has` 打印包含该文件的子目录，默认值
 - `-m` 或 `--missing` 打印不包含该文件的子目录
 - `-b` 或 `--both` 同时打印两类子目录

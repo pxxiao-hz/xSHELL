@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 xSHELL <command> [options]
 ```
 
-Current version: `0.4.0`
+Current version: `0.4.1`
 
 Examples:
 
@@ -197,7 +197,7 @@ Common options:
 
 ## has
 
-`has` checks immediate child directories and reports whether they contain a specific file name.
+`has` checks immediate child directories and reports whether they contain a specific path name.
 
 Show child directories that contain `.contact_map.done`:
 
@@ -209,6 +209,12 @@ Show child directories that do not contain `.contact_map.done`:
 
 ```bash
 xSHELL has -n .contact_map.done -m .
+```
+
+Show child directories that do not contain a `plots` directory:
+
+```bash
+xSHELL has -n plots -t d -m .
 ```
 
 Show both statuses:
@@ -232,6 +238,7 @@ xSHELL has -n .contact_map.done -m -D 2 .
 Common options:
 
 - `-n NAME` or `--name NAME` sets the file name to check
+- `-t f|d|a` or `--type f|d|a` checks files, directories, or any path type
 - `--has` prints directories containing the file, the default
 - `-m` or `--missing` prints directories not containing the file
 - `-b` or `--both` prints both groups
