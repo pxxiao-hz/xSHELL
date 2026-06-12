@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 xSHELL <command> [options]
 ```
 
-Current version: `0.4.1`
+Current version: `0.5.0`
 
 Examples:
 
@@ -16,6 +16,7 @@ Examples:
 xSHELL ext -e tsv -m .
 xSHELL find '*.fa*' -s size -r .
 xSHELL has -n .contact_map.done -m .
+xSHELL ln rm -p '*.fa' .
 xSHELL ren -e fa:fasta *.fa
 xSHELL top -u USER -s mem
 ```
@@ -85,6 +86,7 @@ Current commands:
 ext
 find
 has
+ln
 path
 ren
 size
@@ -99,6 +101,7 @@ Meanings:
 | `ext` | Check child directories by file extension, such as which directories contain or miss `tsv`, `fasta`, `fa`, or `vcf` files |
 | `find` | Recursively find files or directories and sort by name, size, or modified time |
 | `has` | Check child directories by a specific file name, such as which directories contain or miss `.contact_map.done` |
+| `ln` | List symlinks, find broken symlinks, and batch unlink symlinks |
 | `path` | Store and print frequently used paths, such as genome FASTA paths |
 | `ren` | Rename files in batch, with preview by default |
 | `size` | Show disk usage for immediate child directories |
@@ -244,6 +247,47 @@ Common options:
 - `-b` or `--both` prints both groups
 - `-r` or `--recursive` searches recursively inside each child directory
 - `-D N` or `--depth N` searches up to N levels inside each child directory
+
+## ln
+
+`ln` manages symbolic links. Unlink actions preview by default; add `-y` to execute.
+
+List symlinks in the current directory:
+
+```bash
+xSHELL ln ls .
+```
+
+List symlinks recursively:
+
+```bash
+xSHELL ln ls -r .
+```
+
+Find broken symlinks:
+
+```bash
+xSHELL ln broken -r .
+```
+
+Preview unlinking symlinks that match a pattern:
+
+```bash
+xSHELL ln rm -p '*.fa' .
+```
+
+Execute unlinking after checking the preview:
+
+```bash
+xSHELL ln rm -p '*.fa' . -y
+```
+
+Common options:
+
+- `-p PATTERN` or `--pattern PATTERN` filters symlink names
+- `-r` or `--recursive` searches recursively
+- `-y` or `--yes` executes unlinking
+- `-n` or `--dry-run` previews only, the default
 
 ## path
 

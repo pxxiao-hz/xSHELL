@@ -8,7 +8,7 @@
 xSHELL <功能名> [参数]
 ```
 
-当前版本：`0.4.1`
+当前版本：`0.5.0`
 
 例如：
 
@@ -16,6 +16,7 @@ xSHELL <功能名> [参数]
 xSHELL ext -e tsv -m .
 xSHELL find '*.fa*' -s size -r .
 xSHELL has -n .contact_map.done -m .
+xSHELL ln rm -p '*.fa' .
 xSHELL ren -e fa:fasta *.fa
 xSHELL top -u USER -s mem
 ```
@@ -85,6 +86,7 @@ xSHELL top -h
 ext
 find
 has
+ln
 path
 ren
 size
@@ -99,6 +101,7 @@ version
 | `ext` | 根据文件后缀检查子目录，例如哪些子目录有 `tsv`、`fasta`、`fa`、`vcf` 文件，哪些没有 |
 | `find` | 在目录中递归查找文件或目录，并可按名称、大小、修改时间排序 |
 | `has` | 根据指定文件名检查子目录，例如哪些子目录有或没有 `.contact_map.done` |
+| `ln` | 列出软链接、查找坏链接、批量 unlink 软链接 |
 | `path` | 保存和打印常用路径，例如常用基因组 fasta 文件路径 |
 | `ren` | 批量修改文件名，默认先预览 |
 | `size` | 查看当前目录下各个子目录的占用空间 |
@@ -244,6 +247,47 @@ xSHELL has -n .contact_map.done -m -D 2 .
 - `-b` 或 `--both` 同时打印两类子目录
 - `-r` 或 `--recursive` 递归检查每个子目录内部
 - `-D N` 或 `--depth N` 限制在每个子目录内部最多检查 N 层
+
+## ln
+
+`ln` 用于管理软链接。unlink 操作默认只预览；确认无误后加 `-y` 执行。
+
+列出当前目录下的软链接：
+
+```bash
+xSHELL ln ls .
+```
+
+递归列出软链接：
+
+```bash
+xSHELL ln ls -r .
+```
+
+查找坏链接：
+
+```bash
+xSHELL ln broken -r .
+```
+
+预览批量 unlink 匹配模式的软链接：
+
+```bash
+xSHELL ln rm -p '*.fa' .
+```
+
+确认预览后执行 unlink：
+
+```bash
+xSHELL ln rm -p '*.fa' . -y
+```
+
+常用参数：
+
+- `-p PATTERN` 或 `--pattern PATTERN` 按软链接名称筛选
+- `-r` 或 `--recursive` 递归查找
+- `-y` 或 `--yes` 执行 unlink
+- `-n` 或 `--dry-run` 只预览，默认值
 
 ## path
 

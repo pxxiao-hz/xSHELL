@@ -3,7 +3,7 @@
 set -u
 
 PROG="$(basename "$0")"
-VERSION="0.4.1"
+VERSION="0.5.0"
 CONFIG_DIR="${XSHELL_CONFIG_DIR:-$HOME/.config/xSHELL}"
 PATH_DB="$CONFIG_DIR/paths.tsv"
 
@@ -25,7 +25,7 @@ ensure_config() {
 usage() {
   cat <<'EOF'
 xSHELL - small shell helper collection
-Version: 0.4.1
+Version: 0.5.0
 
 Usage:
   xSHELL <name> [args]
@@ -37,6 +37,7 @@ Commands:
   ext           Print child directories that have or miss files by extension
   find          Find files/directories and sort by size, time, or name
   has           Print child directories that have or miss a named file
+  ln            List, inspect, and unlink symlinks
   path          Store and print frequently used paths
   ren           Rename files in batch with preview
   size          Show child directory sizes
@@ -48,6 +49,7 @@ Examples:
   xSHELL ext -e fasta -m .
   xSHELL find '*.fa*' -s size -r .
   xSHELL has -n .contact_map.done -m .
+  xSHELL ln rm -p '*.fa' .
   xSHELL ren -e fa:fasta *.fa
   xSHELL path ref-genome
   xSHELL top -u USER -s mem -n 20
@@ -56,7 +58,7 @@ EOF
 }
 
 list_functions() {
-  printf '%s\n' ext find has path ren size top version
+  printf '%s\n' ext find has ln path ren size top version
 }
 
 print_version() {
@@ -166,6 +168,34 @@ Examples:
 EOF
 }
 
+help_ln() {
+  cat <<'EOF'
+Usage:
+  xSHELL ln <action> [options] [DIR]
+
+Manage symbolic links. Unlink actions preview by default; use -y to execute.
+
+Actions:
+  ls                 List symlinks
+  rm                 Unlink symlinks matching -p PATTERN
+  broken             List broken symlinks
+
+Options:
+  -p, --pattern PAT  Symlink name pattern. Default: *
+  -r, --recursive    Search recursively
+  -y, --yes          Execute unlink for rm
+  -n, --dry-run      Preview only. This is the default
+  -h, --help         Show this help
+
+Examples:
+  xSHELL ln ls .
+  xSHELL ln ls -r .
+  xSHELL ln broken -r .
+  xSHELL ln rm -p '*.fa' .
+  xSHELL ln rm -p '*.fa' . -y
+EOF
+}
+
 help_ren() {
   cat <<'EOF'
 Usage:
@@ -242,6 +272,7 @@ help_function() {
     ext) help_ext_dirs ;;
     find) help_find_file ;;
     has) help_has ;;
+    ln) help_ln ;;
     path) help_path ;;
     ren) help_ren ;;
     size) help_subdir_size ;;
@@ -303,6 +334,9 @@ cmd_ext_dirs() {
   done
 
   [ -n "$ext" ] || die "ext needs --ext EXT"
+  if [ "$dir" != "/" ]; then
+    dir="${dir%/}"
+  fi
   [ -d "$dir" ] || die "not a directory: $dir"
 
   local child base found any=0
@@ -434,6 +468,9 @@ cmd_has() {
   done
 
   [ -n "$name" ] || die "has needs --name NAME"
+  if [ "$dir" != "/" ]; then
+    dir="${dir%/}"
+  fi
   [ -d "$dir" ] || die "not a directory: $dir"
 
   local child base found any=0
@@ -466,6 +503,139 @@ cmd_has() {
   done
 
   [ "$any" -eq 1 ] || return 1
+}
+
+list_symlinks() {
+  local dir="$1"
+  local pattern="$2"
+  local recursive="$3"
+
+  if [ "$recursive" -eq 1 ]; then
+    find "$dir" -type l -name "$pattern" -print 2>/dev/null
+  else
+    find "$dir" -type l -name "$pattern" -print 2>/dev/null | awk -v base="$dir/" '
+      index($0, base) == 1 {
+        rel = substr($0, length(base) + 1)
+        if (index(rel, "/") == 0) print
+      }
+    '
+  fi
+}
+
+cmd_ln() {
+  local action="${1:-}"
+  local dir="."
+  local pattern="*"
+  local pattern_set=0
+  local recursive=0
+  local execute=0
+
+  if [ -z "$action" ]; then
+    help_ln
+    return 0
+  fi
+  shift
+
+  case "$action" in
+    ls|rm|broken) ;;
+    -h|-help|--help)
+      help_ln
+      return 0
+      ;;
+    *)
+      die "unknown ln action: $action"
+      ;;
+  esac
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -p|--pattern)
+        [ "$#" -ge 2 ] || die "--pattern needs a value"
+        pattern="$2"
+        pattern_set=1
+        shift 2
+        ;;
+      -r|--recursive)
+        recursive=1
+        shift
+        ;;
+      -y|--yes)
+        execute=1
+        shift
+        ;;
+      -n|--dry-run)
+        execute=0
+        shift
+        ;;
+      -h|-help|--help)
+        help_ln
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        die "unknown option for ln: $1"
+        ;;
+      *)
+        dir="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$dir" != "/" ]; then
+    dir="${dir%/}"
+  fi
+  [ -d "$dir" ] || die "not a directory: $dir"
+  if [ "$action" = "rm" ] && [ "$pattern_set" -eq 0 ]; then
+    die "ln rm needs -p PATTERN"
+  fi
+
+  local link target count=0 skipped=0
+  while IFS= read -r link; do
+    [ -n "$link" ] || continue
+
+    if [ "$action" = "broken" ] && [ -e "$link" ]; then
+      continue
+    fi
+
+    target="$(readlink "$link" 2>/dev/null || printf '?')"
+
+    case "$action" in
+      ls)
+        printf '%s -> %s\n' "$link" "$target"
+        count=$((count + 1))
+        ;;
+      broken)
+        printf '%s -> %s\n' "$link" "$target"
+        count=$((count + 1))
+        ;;
+      rm)
+        if [ "$execute" -eq 1 ]; then
+          unlink "$link" || die "failed to unlink: $link"
+          printf 'UNLINKED\t%s -> %s\n' "$link" "$target"
+          count=$((count + 1))
+        else
+          printf 'DRY-RUN\t%s -> %s\n' "$link" "$target"
+          count=$((count + 1))
+        fi
+        ;;
+    esac
+  done < <(list_symlinks "$dir" "$pattern" "$recursive")
+
+  case "$action" in
+    rm)
+      if [ "$execute" -eq 1 ]; then
+        printf 'Done. unlinked=%d skipped=%d\n' "$count" "$skipped"
+      else
+        printf 'Preview only. Add -y to unlink. planned=%d skipped=%d\n' "$count" "$skipped"
+      fi
+      ;;
+  esac
+
+  [ "$count" -gt 0 ] || return 1
 }
 
 stat_size() {
@@ -1165,6 +1335,9 @@ dispatch() {
       ;;
     has)
       cmd_has "$@"
+      ;;
+    ln)
+      cmd_ln "$@"
       ;;
     path)
       cmd_path "$@"

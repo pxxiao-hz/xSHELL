@@ -4,6 +4,15 @@ All notable changes to xSHELL are documented here.
 
 The format follows the spirit of Keep a Changelog, and versions use semantic versioning.
 
+## [0.5.0] - 2026-06-12
+
+### Added
+
+- Added `ln` for symlink management.
+- Added `ln ls` for listing symlinks.
+- Added `ln broken` for finding broken symlinks.
+- Added preview-first `ln rm` for batch unlinking symlinks.
+
 ## [0.4.1] - 2026-06-11
 
 ### Added
